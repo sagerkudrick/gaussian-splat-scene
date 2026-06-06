@@ -2,7 +2,9 @@
 
 A web-based Gaussian Splat viewer for an interactive digital twin scene with spatial data and labels.
 
-
+<p align="center">
+  <img src="images/preview.gif" width="45%">
+</p>
 
 ---
 
