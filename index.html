@@ -1342,7 +1342,7 @@ window.addEventListener('resize', () => {
   updateBusinessModel();
 
   document.getElementById('load-msg').textContent = 'Loading retail shelf asset...';
-  await loadSplat('Main Shelf Infrastructure', 'splats/shelf.ply', {
+  await loadSplat('Main Shelf Infrastructure', 'splats/shelf.splat', {
     position: [0, 0.5, 0],
     w: 4.0,
     h: 2.5,
@@ -1351,7 +1351,7 @@ window.addEventListener('resize', () => {
   });
 
   document.getElementById('load-msg').textContent = 'Loading SKU inventory unit...';
-  await loadSplat('Personal Care SKU-A', 'splats/product.ply', {
+  await loadSplat('Personal Care SKU-A', 'splats/product.splat', {
     position: [0, 0.42, 0],
     rotation: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 120, 0)),
     w: 0.5,
@@ -1360,7 +1360,7 @@ window.addEventListener('resize', () => {
     isProduct: true
   });
 
-  await loadSplat('Personal Care SKU-A', 'splats/product.ply', {
+  await loadSplat('Personal Care SKU-A', 'splats/product.splat', {
     position: [2, 0.42, -.5],
     rotation: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 44, 0)),
     w: 0.5,
@@ -1369,7 +1369,7 @@ window.addEventListener('resize', () => {
     isProduct: true
   });
 
-  await loadSplat('Personal Care SKU-A', 'splats/product.ply', {
+  await loadSplat('Personal Care SKU-A', 'splats/product.splat', {
     position: [-1, 0.42, -0.2],
     w: 0.5,
     h: 0.6,
