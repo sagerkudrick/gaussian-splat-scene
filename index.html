@@ -1,0 +1,1386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Retail Digital Twin for Shelf-Level Profit Optimization</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.1/examples/jsm/",
+      "@mkkellogg/gaussian-splats-3d": "https://cdn.jsdelivr.net/npm/@mkkellogg/gaussian-splats-3d@0.4.7/build/gaussian-splats-3d.module.js"
+    }
+  }
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #080a0f;
+      --panel: rgba(13, 18, 28, 0.94);
+      --panel-2: rgba(22, 28, 39, 0.92);
+      --border: rgba(145, 163, 184, 0.22);
+      --border-strong: rgba(35, 170, 135, 0.55);
+      --text: #eef4fa;
+      --muted: #8b9aae;
+      --faint: #536174;
+      --accent: #22c7a9;
+      --blue: #5da8ff;
+      --warn: #f2b84b;
+      --danger: #ff5d5d;
+      --good: #50d890;
+      --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    #cv { position: fixed; inset: 0; display: block; z-index: 0; }
+    #css2d-container { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+
+    #loading {
+      position: fixed;
+      inset: 0;
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      background: #080a0f;
+      color: var(--text);
+    }
+
+    #loading.gone { display: none; }
+    #loading-title { color: var(--accent); font-size: 18px; font-weight: 750; }
+    #load-msg { color: var(--muted); font-size: 13px; }
+
+    #sidebar {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      bottom: 16px;
+      width: min(390px, calc(100vw - 32px));
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 14px;
+      overflow: hidden;
+      pointer-events: auto;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+    }
+
+    #splat-registry {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      width: min(360px, calc(100vw - 32px));
+      max-height: calc(100vh - 32px);
+      z-index: 11;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 13px;
+      pointer-events: auto;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+    }
+
+    #splat-registry h2 {
+      font-size: 14px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    #splat-registry p {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.4;
+    }
+
+    #floating-label-toggle {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 12;
+      min-height: 36px;
+      padding: 0 14px;
+      color: #06120f;
+      background: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      pointer-events: auto;
+      font: inherit;
+      font-size: 12px;
+      font-weight: 850;
+      letter-spacing: 0;
+    }
+
+    #floating-label-toggle.off {
+      color: var(--text);
+      background: var(--panel);
+      border-color: var(--border);
+    }
+
+    #status-toast {
+      position: fixed;
+      left: 50%;
+      bottom: 18px;
+      z-index: 12;
+      min-width: 220px;
+      max-width: min(420px, calc(100vw - 32px));
+      padding: 10px 13px;
+      color: var(--text);
+      background: rgba(13, 18, 28, 0.94);
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      pointer-events: none;
+      transform: translate(-50%, 16px);
+      opacity: 0;
+      transition: opacity 0.18s ease, transform 0.18s ease;
+      font-size: 12px;
+      font-weight: 780;
+      text-align: center;
+    }
+
+    #status-toast.visible {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
+
+    #brand-block {
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    #brand-block h1 {
+      font-size: 17px;
+      line-height: 1.2;
+      letter-spacing: 0;
+      font-weight: 800;
+      max-width: 330px;
+    }
+
+    #brand-block p {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .section-title::after {
+      content: "";
+      height: 1px;
+      flex: 1;
+      background: var(--border);
+    }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .metric-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: baseline;
+      gap: 12px;
+      padding: 5px 0;
+      border-bottom: 1px dashed rgba(255, 255, 255, 0.07);
+      font-size: 12px;
+    }
+
+    .metric-row span:first-child { color: var(--muted); }
+    .metric-row strong, .metric-row span:last-child { font-weight: 760; text-align: right; }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .kpi {
+      min-height: 72px;
+      padding: 10px;
+      background: rgba(255, 255, 255, 0.035);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+    }
+
+    .kpi label {
+      display: block;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 740;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .kpi strong {
+      display: block;
+      margin-top: 6px;
+      font-size: 18px;
+      line-height: 1.15;
+      color: var(--text);
+    }
+
+    .kpi small {
+      display: block;
+      margin-top: 4px;
+      color: var(--faint);
+      font-size: 10px;
+      line-height: 1.25;
+    }
+
+    .accent { color: var(--accent) !important; }
+    .blue { color: var(--blue) !important; }
+    .good { color: var(--good) !important; }
+    .warn { color: var(--warn) !important; }
+    .danger { color: var(--danger) !important; }
+    .muted { color: var(--muted) !important; }
+
+    .assumption-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .field label {
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 740;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .field input, .field select {
+      width: 100%;
+      height: 32px;
+      padding: 0 8px;
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 6px;
+      font: inherit;
+      font-size: 12px;
+      outline: none;
+    }
+
+    .field input:focus, .field select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(34, 199, 169, 0.16);
+    }
+
+    #obj-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-height: 180px;
+      max-height: min(430px, calc(100vh - 170px));
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+
+    .splat-list-header {
+      display: grid;
+      grid-template-columns: 44px minmax(0, 1fr) 70px;
+      gap: 8px;
+      padding: 0 8px 2px;
+      color: var(--faint);
+      font-size: 9px;
+      font-weight: 850;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .bar-item {
+      display: grid;
+      grid-template-columns: 44px minmax(0, 1fr) 70px;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      cursor: pointer;
+      background: rgba(255, 255, 255, 0.035);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 7px;
+      font-size: 12px;
+      transition: border-color 0.18s ease, background 0.18s ease;
+    }
+
+    .bar-item:hover {
+      background: rgba(34, 199, 169, 0.07);
+      border-color: rgba(34, 199, 169, 0.32);
+    }
+
+    .bar-item.selected {
+      background: rgba(34, 199, 169, 0.14);
+      border-color: var(--accent);
+    }
+
+    .splat-id {
+      color: var(--blue);
+      font-size: 11px;
+      font-weight: 850;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .item-left { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+    .item-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); flex: 0 0 auto; }
+    .selected .item-dot { background: var(--accent); }
+    .item-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 780; }
+    .item-meta { color: var(--faint); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .item-badge {
+      flex: 0 0 auto;
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: rgba(255, 93, 93, 0.12);
+      color: var(--danger);
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      text-align: center;
+    }
+
+    #controls-hud {
+      margin-top: auto;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.55;
+    }
+
+    .control-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .action-button {
+      min-height: 34px;
+      padding: 0 8px;
+      color: var(--text);
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 6px;
+      cursor: pointer;
+      font: inherit;
+      font-size: 10px;
+      font-weight: 780;
+      transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+    }
+
+    .action-button:hover:not(:disabled),
+    .action-button.active {
+      color: #06120f;
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .action-button:disabled {
+      cursor: not-allowed;
+      color: var(--faint);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .action-button.danger-button:hover:not(:disabled) {
+      color: #190606;
+      background: var(--danger);
+      border-color: var(--danger);
+    }
+
+    .key {
+      color: var(--text);
+      font-weight: 800;
+    }
+
+    .spatial-tag {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 8px 10px;
+      color: var(--text);
+      background: rgba(8, 11, 18, 0.92);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.48);
+      pointer-events: none;
+      white-space: nowrap;
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+      font-size: 11px;
+      opacity: 1;
+      transition: opacity 0.16s ease, transform 0.16s ease;
+      transform-origin: bottom center;
+    }
+
+    .spatial-tag.is-dimmed {
+      opacity: 0.34;
+    }
+
+    .spatial-tag.is-hidden {
+      opacity: 0;
+    }
+
+    .spatial-tag.is-compact .spatial-meta,
+    .spatial-tag.is-compact .db-section,
+    .spatial-tag.is-compact .db-row {
+      display: none;
+    }
+
+    .product-tag {
+      min-width: 190px;
+      transform: translateY(-58px) scale(var(--label-scale, 1));
+      border-color: rgba(93, 168, 255, 0.6);
+    }
+
+    .product-tag::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: -6px;
+      transform: translateX(-50%);
+      border-width: 6px 6px 0;
+      border-style: solid;
+      border-color: var(--blue) transparent transparent transparent;
+    }
+
+    .dashboard-tag {
+      min-width: 300px;
+      padding: 14px;
+      border-color: var(--border-strong);
+      background: rgba(10, 15, 24, 0.96);
+      transform: scale(var(--label-scale, 1));
+    }
+
+    .spatial-title {
+      color: var(--accent);
+      font-weight: 850;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .spatial-meta { color: var(--muted); font-size: 10px; }
+    .db-section {
+      margin-top: 5px;
+      padding-top: 5px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--blue);
+      font-size: 9px;
+      font-weight: 850;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .db-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 20px;
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .db-row strong {
+      color: var(--text);
+      font-size: 11px;
+      text-align: right;
+    }
+
+    @media (max-width: 760px) {
+      #sidebar {
+        right: 12px;
+        left: 12px;
+        top: 12px;
+        bottom: auto;
+        max-height: calc(100vh - 24px);
+        overflow-y: auto;
+      }
+
+      #splat-registry {
+        left: 12px;
+        right: 12px;
+        top: auto;
+        bottom: 12px;
+        width: auto;
+        max-height: 42vh;
+      }
+
+      #floating-label-toggle {
+        top: auto;
+        bottom: calc(42vh + 24px);
+        left: 50%;
+      }
+
+      #obj-bar {
+        min-height: 120px;
+        max-height: 28vh;
+      }
+
+      .kpi-grid, .assumption-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="css2d-container"></div>
+<button id="floating-label-toggle" type="button">Hide Labels</button>
+<div id="status-toast" role="status" aria-live="polite"></div>
+
+<div id="loading">
+  <div id="loading-title">Loading retail profit digital twin</div>
+  <div id="load-msg">Initializing shelf analytics model...</div>
+</div>
+
+<aside id="sidebar" aria-label="Retail digital twin dashboard">
+  <header id="brand-block">
+    <h1>Retail Digital Twin for Shelf-Level Profit Optimization</h1>
+    <p>Business research prototype linking 3D shelf state, inventory risk, margin exposure, and managerial decision rules.</p>
+  </header>
+
+  <section class="panel">
+    <div class="section-title">Executive KPIs</div>
+    <div class="kpi-grid">
+      <div class="kpi">
+        <label>Expected Profit</label>
+        <strong id="k-profit" class="good">$0.00</strong>
+        <small>gross profit after estimated shrink and holding cost</small>
+      </div>
+      <div class="kpi">
+        <label>Profit at Risk</label>
+        <strong id="k-risk" class="warn">$0.00</strong>
+        <small>lost margin from defects, stockout, and markdown exposure</small>
+      </div>
+      <div class="kpi">
+        <label>Service Level</label>
+        <strong id="k-service" class="blue">0%</strong>
+        <small>available sellable stock versus modeled demand</small>
+      </div>
+      <div class="kpi">
+        <label>Decision</label>
+        <strong id="k-decision" class="accent">Hold</strong>
+        <small id="k-decision-note">waiting for product data</small>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="section-title">Cost Model</div>
+    <div class="assumption-grid">
+      <div class="field">
+        <label for="unit-price">Retail Price</label>
+        <input id="unit-price" type="number" min="0" step="0.01" value="8.99">
+      </div>
+      <div class="field">
+        <label for="unit-cost">Unit Cost</label>
+        <input id="unit-cost" type="number" min="0" step="0.01" value="4.40">
+      </div>
+      <div class="field">
+        <label for="weekly-demand">Weekly Demand</label>
+        <input id="weekly-demand" type="number" min="1" step="1" value="10">
+      </div>
+      <div class="field">
+        <label for="holding-cost">Holding Cost</label>
+        <input id="holding-cost" type="number" min="0" step="0.01" value="0.18">
+      </div>
+      <div class="field">
+        <label for="markdown-rate">Markdown Rate</label>
+        <input id="markdown-rate" type="number" min="0" max="100" step="1" value="35">
+      </div>
+      <div class="field">
+        <label for="reorder-cost">Reorder Cost</label>
+        <input id="reorder-cost" type="number" min="0" step="0.01" value="6.50">
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="section-title">Shelf Economics</div>
+    <div class="metric-row"><span>Sellable Units</span><strong id="m-sellable" class="good">0</strong></div>
+    <div class="metric-row"><span>Total Units</span><strong id="m-count">0</strong></div>
+    <div class="metric-row"><span>Shelf Utilization</span><strong id="m-capacity">0%</strong></div>
+    <div class="metric-row"><span>Gross Margin / Unit</span><strong id="m-margin" class="accent">$0.00</strong></div>
+    <div class="metric-row"><span>Inventory Value</span><strong id="m-value">$0.00</strong></div>
+    <div class="metric-row"><span>Quality Loss Index</span><strong id="m-quality" class="warn">0.0%</strong></div>
+  </section>
+
+  <section class="panel">
+    <div class="section-title">Managerial Output</div>
+    <div class="metric-row"><span>Recommended Action</span><strong id="b-action" class="accent">Hold</strong></div>
+    <div class="metric-row"><span>Reorder Quantity</span><strong id="b-reorder">0 units</strong></div>
+    <div class="metric-row"><span>Primary Cost Driver</span><strong id="b-driver" class="muted">None</strong></div>
+    <div class="metric-row"><span>Research Interpretation</span><strong id="b-model" class="blue">Baseline state</strong></div>
+  </section>
+
+  <div id="controls-hud">
+    <div class="control-grid">
+      <button class="action-button active" id="mode-translate" type="button">Translate</button>
+      <button class="action-button" id="mode-rotate" type="button">Rotate</button>
+      <button class="action-button" id="duplicate-object" type="button" disabled>Duplicate</button>
+      <button class="action-button danger-button" id="delete-object" type="button" disabled>Delete</button>
+    </div>
+    <div>Selected: <span id="hud-selected" class="accent">None</span></div>
+    <div><span class="key">T</span> translate, <span class="key">R</span> rotate, <span class="key">Shift + D</span> duplicate selected object, <span class="key">Del</span> delete</div>
+    <div>Click an asset in the scene or asset list, then drag the transform handles to move it.</div>
+    <div><span class="key">Arrow keys</span> pan camera. Drag empty scene space to inspect the shelf.</div>
+  </div>
+</aside>
+
+<aside id="splat-registry" aria-label="Individual splat registry">
+  <div>
+    <h2>Splat Object Registry</h2>
+    <p>Click any row to select that individual splat, then move, rotate, duplicate, or delete it.</p>
+  </div>
+  <div id="obj-bar"></div>
+</aside>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import * as GaussianSplats3D from '@mkkellogg/gaussian-splats-3d';
+
+const MAX_SHELF_CAPACITY = 16;
+const DEFECT_THRESHOLD = 45;
+const LOW_STOCK_THRESHOLD = 0.45;
+const trackable = [];
+const spatialLabels = [];
+let selected = null;
+let dashboardRefs = {};
+let labelsVisible = true;
+let isDuplicating = false;
+let toastTimer = null;
+
+const canvas = document.getElementById('cv');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x080a0f, 1);
+
+const labelRenderer = new CSS2DRenderer();
+labelRenderer.setSize(window.innerWidth, window.innerHeight);
+document.getElementById('css2d-container').appendChild(labelRenderer.domElement);
+
+const camera = new THREE.PerspectiveCamera(62, window.innerWidth / window.innerHeight, 0.1, 500);
+camera.position.set(0.2, 3.1, 7.2);
+
+const threeScene = new THREE.Scene();
+threeScene.fog = new THREE.Fog(0x080a0f, 9, 25);
+
+const ambient = new THREE.AmbientLight(0xffffff, 0.55);
+threeScene.add(ambient);
+
+const keyLight = new THREE.DirectionalLight(0xffffff, 1.7);
+keyLight.position.set(3, 5, 4);
+threeScene.add(keyLight);
+
+const floor = new THREE.GridHelper(10, 20, 0x1f8f79, 0x233044);
+floor.position.y = -0.04;
+floor.material.opacity = 0.28;
+floor.material.transparent = true;
+threeScene.add(floor);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 1.35, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.055;
+controls.screenSpacePanning = true;
+controls.mouseButtons = {
+  LEFT: THREE.MOUSE.ROTATE,
+  MIDDLE: THREE.MOUSE.PAN,
+  RIGHT: THREE.MOUSE.PAN
+};
+
+const transformControls = new TransformControls(camera, renderer.domElement);
+transformControls.size = 0.76;
+transformControls.addEventListener('dragging-changed', event => {
+  controls.enabled = !event.value;
+});
+threeScene.add(transformControls);
+
+const dropInViewer = new GaussianSplats3D.DropInViewer({
+  gpuAcceleratedSort: false,
+  integerBasedSort: false,
+  sharedMemoryForWorkers: false,
+  dynamicScene: true
+});
+threeScene.add(dropInViewer);
+
+const inputIds = ['unit-price', 'unit-cost', 'weekly-demand', 'holding-cost', 'markdown-rate', 'reorder-cost'];
+inputIds.forEach(id => document.getElementById(id).addEventListener('input', updateBusinessModel));
+document.getElementById('mode-translate').addEventListener('click', () => setTransformMode('translate'));
+document.getElementById('mode-rotate').addEventListener('click', () => setTransformMode('rotate'));
+document.getElementById('duplicate-object').addEventListener('click', duplicateSelected);
+document.getElementById('delete-object').addEventListener('click', deleteSelected);
+document.getElementById('floating-label-toggle').addEventListener('click', toggleLabels);
+
+function setTransformMode(mode) {
+  transformControls.setMode(mode);
+  document.getElementById('mode-translate').classList.toggle('active', mode === 'translate');
+  document.getElementById('mode-rotate').classList.toggle('active', mode === 'rotate');
+}
+
+function toggleLabels() {
+  labelsVisible = !labelsVisible;
+  const button = document.getElementById('floating-label-toggle');
+  button.classList.toggle('off', !labelsVisible);
+  button.textContent = labelsVisible ? 'Hide Labels' : 'Show Labels';
+  updateLabelVisibility();
+}
+
+function showToast(message, persistent = false) {
+  const toast = document.getElementById('status-toast');
+  toast.textContent = message;
+  toast.classList.add('visible');
+
+  if (toastTimer) window.clearTimeout(toastTimer);
+  if (!persistent) {
+    toastTimer = window.setTimeout(() => toast.classList.remove('visible'), 1600);
+  }
+}
+
+function hideToast() {
+  if (toastTimer) window.clearTimeout(toastTimer);
+  document.getElementById('status-toast').classList.remove('visible');
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function money(value) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+}
+
+function assumption(id) {
+  return Number.parseFloat(document.getElementById(id).value) || 0;
+}
+
+function generateBarcode() {
+  return `4902430${Math.floor(100000 + Math.random() * 900000)}`;
+}
+
+function generateBatchCode() {
+  const years = ['2027', '2028'];
+  const months = ['02', '05', '09', '11'];
+  return `LOT-B${Math.floor(100 + Math.random() * 900)}-EXP${months[Math.floor(Math.random() * months.length)]}${years[Math.floor(Math.random() * years.length)]}`;
+}
+
+function classifyUnit(unit) {
+  if (unit.qualityLoss >= DEFECT_THRESHOLD) return 'Quarantine';
+  if (unit.qualityLoss >= 24) return 'Markdown';
+  return 'Sellable';
+}
+
+function modelShelfEconomics() {
+  const unitPrice = assumption('unit-price');
+  const unitCost = assumption('unit-cost');
+  const weeklyDemand = Math.max(1, assumption('weekly-demand'));
+  const holdingCost = assumption('holding-cost');
+  const markdownRate = assumption('markdown-rate') / 100;
+  const reorderCost = assumption('reorder-cost');
+  const margin = Math.max(0, unitPrice - unitCost);
+
+  const stockItems = trackable.filter(item => item.isProduct && !item.deleted);
+  const totalUnits = stockItems.length;
+  const sellableUnits = stockItems.filter(item => classifyUnit(item) !== 'Quarantine').length;
+  const markdownUnits = stockItems.filter(item => classifyUnit(item) === 'Markdown').length;
+  const quarantineUnits = stockItems.filter(item => classifyUnit(item) === 'Quarantine').length;
+
+  const averageQualityLoss = totalUnits
+    ? stockItems.reduce((sum, item) => sum + item.qualityLoss, 0) / totalUnits
+    : 0;
+
+  const capacityPct = Math.min(Math.round((totalUnits / MAX_SHELF_CAPACITY) * 100), 100);
+  const serviceLevel = Math.min(100, Math.round((sellableUnits / weeklyDemand) * 100));
+  const forecastGap = Math.max(0, weeklyDemand - sellableUnits);
+  const reorderCapacity = Math.max(0, MAX_SHELF_CAPACITY - totalUnits);
+  const reorderCandidate = Math.min(reorderCapacity, forecastGap + quarantineUnits);
+
+  const regularProfit = Math.min(sellableUnits - markdownUnits, weeklyDemand) * margin;
+  const markdownLoss = markdownUnits * unitPrice * markdownRate;
+  const defectLoss = quarantineUnits * (unitCost + margin);
+  const stockoutLoss = forecastGap * margin;
+  const carryingCost = totalUnits * holdingCost;
+  const expectedProfit = Math.max(0, regularProfit - markdownLoss - carryingCost);
+  const inventoryValue = totalUnits * unitCost;
+
+  let decision = 'Hold';
+  let note = 'shelf state is profitable within current assumptions';
+  let driver = 'Balanced inventory';
+  let interpretation = 'Baseline state';
+  let reorderQuantity = 0;
+
+  if (quarantineUnits > 0 && defectLoss >= stockoutLoss) {
+    decision = 'Remove damaged units';
+    note = `${quarantineUnits} unit(s) exceed sellable quality threshold`;
+    driver = 'Defect and shrink loss';
+    interpretation = 'Quality risk is reducing realized margin';
+    reorderQuantity = Math.min(reorderCapacity, quarantineUnits);
+  }
+
+  if (sellableUnits / weeklyDemand < LOW_STOCK_THRESHOLD) {
+    decision = reorderCandidate > 0 ? 'Reorder now' : 'Increase shelf capacity';
+    note = `sellable stock covers ${serviceLevel}% of modeled weekly demand`;
+    driver = 'Stockout opportunity cost';
+    interpretation = 'Demand coverage is below service target';
+    reorderQuantity = reorderCandidate;
+  }
+
+  if (capacityPct > 92 && serviceLevel >= 80) {
+    decision = 'Reduce replenishment';
+    note = 'capacity is high relative to demand coverage';
+    driver = 'Holding cost';
+    interpretation = 'Inventory policy may be tying up shelf capital';
+    reorderQuantity = 0;
+  }
+
+  const reorderPenalty = reorderQuantity > 0 ? reorderCost : 0;
+  const profitAtRisk = markdownLoss + defectLoss + stockoutLoss + reorderPenalty;
+
+  return {
+    totalUnits,
+    sellableUnits,
+    markdownUnits,
+    quarantineUnits,
+    averageQualityLoss,
+    capacityPct,
+    serviceLevel,
+    margin,
+    inventoryValue,
+    expectedProfit,
+    profitAtRisk,
+    reorderQuantity,
+    decision,
+    note,
+    driver,
+    interpretation
+  };
+}
+
+function setClass(id, className) {
+  const el = document.getElementById(id);
+  el.className = className;
+  return el;
+}
+
+function updateBusinessModel() {
+  const model = modelShelfEconomics();
+
+  document.getElementById('k-profit').textContent = money(model.expectedProfit);
+  document.getElementById('k-risk').textContent = money(model.profitAtRisk);
+  document.getElementById('k-service').textContent = `${model.serviceLevel}%`;
+  document.getElementById('k-decision').textContent = model.decision;
+  document.getElementById('k-decision-note').textContent = model.note;
+
+  document.getElementById('m-sellable').textContent = `${model.sellableUnits} units`;
+  document.getElementById('m-count').textContent = `${model.totalUnits} units`;
+  document.getElementById('m-capacity').textContent = `${model.capacityPct}%`;
+  document.getElementById('m-margin').textContent = money(model.margin);
+  document.getElementById('m-value').textContent = money(model.inventoryValue);
+  document.getElementById('m-quality').textContent = `${model.averageQualityLoss.toFixed(1)}%`;
+
+  document.getElementById('b-action').textContent = model.decision;
+  document.getElementById('b-reorder').textContent = `${Math.max(0, model.reorderQuantity)} units`;
+  document.getElementById('b-driver').textContent = model.driver;
+  document.getElementById('b-model').textContent = model.interpretation;
+
+  setClass('k-decision', model.decision === 'Hold' ? 'good' : model.decision.includes('Remove') ? 'danger' : 'warn');
+  setClass('k-risk', model.profitAtRisk > 30 ? 'danger' : model.profitAtRisk > 0 ? 'warn' : 'good');
+  setClass('m-quality', model.averageQualityLoss > 35 ? 'danger' : model.averageQualityLoss > 18 ? 'warn' : 'good');
+
+  if (dashboardRefs.stock) dashboardRefs.stock.textContent = `${model.sellableUnits}/${model.totalUnits} sellable`;
+  if (dashboardRefs.profit) dashboardRefs.profit.textContent = money(model.expectedProfit);
+  if (dashboardRefs.risk) dashboardRefs.risk.textContent = money(model.profitAtRisk);
+  if (dashboardRefs.decision) dashboardRefs.decision.textContent = model.decision;
+  if (dashboardRefs.driver) dashboardRefs.driver.textContent = model.driver;
+}
+
+function createRow(label, valueRef, className = '') {
+  const row = document.createElement('div');
+  row.className = 'db-row';
+  const labelSpan = document.createElement('span');
+  labelSpan.textContent = label;
+  const value = document.createElement('strong');
+  value.className = className;
+  row.append(labelSpan, value);
+  return { row, value };
+}
+
+function buildFloatingDecisionDashboard() {
+  const div = document.createElement('div');
+  div.className = 'spatial-tag dashboard-tag';
+
+  const title = document.createElement('div');
+  title.className = 'spatial-title';
+  title.textContent = 'Shelf Profit Decision Hub';
+  div.appendChild(title);
+
+  const s1 = document.createElement('div');
+  s1.className = 'db-section';
+  s1.textContent = 'Economic Model';
+  div.appendChild(s1);
+
+  const stock = createRow('Sellable Inventory', 'stock', 'good');
+  const profit = createRow('Expected Profit', 'profit', 'good');
+  const risk = createRow('Profit at Risk', 'risk', 'warn');
+  div.append(stock.row, profit.row, risk.row);
+
+  const s2 = document.createElement('div');
+  s2.className = 'db-section';
+  s2.textContent = 'Managerial Decision';
+  div.appendChild(s2);
+
+  const decision = createRow('Action', 'decision', 'accent');
+  const driver = createRow('Cost Driver', 'driver', 'blue');
+  div.append(decision.row, driver.row);
+
+  dashboardRefs = {
+    stock: stock.value,
+    profit: profit.value,
+    risk: risk.value,
+    decision: decision.value,
+    driver: driver.value
+  };
+
+  const dashboardAnchor = new THREE.Object3D();
+  dashboardAnchor.position.set(0.15, 3.55, 0);
+  threeScene.add(dashboardAnchor);
+  const labelObj = new CSS2DObject(div);
+  dashboardAnchor.add(labelObj);
+  spatialLabels.push({ object: labelObj, element: div, type: 'dashboard', owner: null });
+}
+
+function createProductLabel(title, unit, parentMesh) {
+  const div = document.createElement('div');
+  div.className = 'spatial-tag product-tag';
+
+  const titleSpan = document.createElement('span');
+  titleSpan.className = 'spatial-title';
+  titleSpan.textContent = title;
+  div.appendChild(titleSpan);
+
+  const margin = Math.max(0, assumption('unit-price') - assumption('unit-cost'));
+  const status = classifyUnit(unit);
+
+  const sku = document.createElement('span');
+  sku.className = 'spatial-meta';
+  sku.textContent = `SKU-A | EAN ${unit.barcode}`;
+  div.appendChild(sku);
+
+  const lot = document.createElement('span');
+  lot.className = 'spatial-meta';
+  lot.textContent = unit.batchCode;
+  div.appendChild(lot);
+
+  const marginSpan = document.createElement('span');
+  marginSpan.className = 'spatial-meta';
+  marginSpan.textContent = `Unit margin ${money(margin)}`;
+  div.appendChild(marginSpan);
+
+  const condition = document.createElement('span');
+  condition.className = 'spatial-meta';
+  condition.style.fontWeight = '800';
+  if (status === 'Quarantine') {
+    condition.style.color = 'var(--danger)';
+    condition.textContent = `Quality loss ${unit.qualityLoss}% | remove from shelf`;
+  } else if (status === 'Markdown') {
+    condition.style.color = 'var(--warn)';
+    condition.textContent = `Quality loss ${unit.qualityLoss}% | markdown risk`;
+  } else {
+    condition.style.color = 'var(--good)';
+    condition.textContent = `Quality loss ${unit.qualityLoss}% | sellable`;
+  }
+  div.appendChild(condition);
+
+  const labelObj = new CSS2DObject(div);
+  parentMesh.add(labelObj);
+  spatialLabels.push({ object: labelObj, element: div, type: 'product', owner: unit });
+}
+
+function makeProxy(w, h, d, pos, rot) {
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(w, h, d),
+    new THREE.MeshBasicMaterial({ color: 0x22c7a9, wireframe: true, transparent: true, opacity: 0 })
+  );
+  mesh.position.copy(pos);
+  if (rot) mesh.rotation.copy(rot);
+  threeScene.add(mesh);
+  return mesh;
+}
+
+async function loadSplat(name, path, opts = {}) {
+  const posArray = opts.position || [0, 0, 0];
+  const proxy = makeProxy(opts.w || 1.5, opts.h || 1.5, opts.d || 1.5, new THREE.Vector3(...posArray));
+  const baseQuaternion = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI);
+
+  await dropInViewer.addSplatScene(path, {
+    showLoadingUI: false,
+    splatAlphaRemovalThreshold: 5,
+    position: posArray,
+    rotation: baseQuaternion.toArray(),
+    scale: opts.scale || [1, 1, 1]
+  });
+
+  const sceneIndex = trackable.length;
+  const isProduct = Boolean(opts.isProduct);
+  const unit = {
+    name,
+    sceneIndex,
+    path,
+    originalOpts: opts,
+    proxy,
+    baseRotation: baseQuaternion,
+    isProduct,
+    qualityLoss: isProduct ? Math.floor(Math.random() * 62) : 0,
+    barcode: isProduct ? generateBarcode() : '',
+    batchCode: isProduct ? generateBatchCode() : ''
+  };
+
+  trackable.push(unit);
+  if (isProduct) createProductLabel(name, unit, proxy);
+  updateBusinessModel();
+}
+
+function select(node) {
+  trackable.forEach(n => { n.proxy.material.opacity = 0; });
+  document.querySelectorAll('.bar-item').forEach(el => el.classList.remove('selected'));
+
+  selected = node;
+  document.getElementById('duplicate-object').disabled = !node;
+  document.getElementById('delete-object').disabled = !node;
+  if (node) {
+    node.proxy.material.opacity = 0.5;
+    document.getElementById('hud-selected').textContent = node.name;
+    document.getElementById(`bar-${node.sceneIndex}`)?.classList.add('selected');
+    transformControls.attach(node.proxy);
+  } else {
+    document.getElementById('hud-selected').textContent = 'None';
+    transformControls.detach();
+  }
+}
+
+async function duplicateSelected() {
+  if (!selected || isDuplicating) return;
+  isDuplicating = true;
+  document.getElementById('duplicate-object').disabled = true;
+  showToast(`Duplicating ${selected.name}...`, true);
+
+  const spawnPos = selected.proxy.position.clone().add(new THREE.Vector3(0.42, 0, 0));
+  const copyOpts = { ...selected.originalOpts, position: spawnPos.toArray() };
+  const nameMatch = selected.name.match(/^(.*?)(?:\s+#(\d+))?$/);
+  const baseName = nameMatch ? nameMatch[1] : selected.name;
+  const siblingCount = trackable.filter(n => !n.deleted && n.name.startsWith(baseName)).length;
+  const newName = `${baseName} #${siblingCount + 1}`;
+
+  try {
+    await loadSplat(newName, selected.path, copyOpts);
+
+    const lastAdded = trackable[trackable.length - 1];
+    lastAdded.proxy.rotation.copy(selected.proxy.rotation);
+    buildSidebar();
+    select(lastAdded);
+    showToast(`Added ${newName}`);
+  } catch (error) {
+    showToast(`Duplicate failed: ${error.message || 'asset load error'}`);
+  } finally {
+    isDuplicating = false;
+    document.getElementById('duplicate-object').disabled = !selected;
+  }
+}
+
+function hideSplatScene(node) {
+  if (!dropInViewer.viewer) return;
+  const splatMesh = dropInViewer.viewer.splatMesh;
+  if (!splatMesh || !splatMesh.scenes || node.sceneIndex >= splatMesh.scenes.length) return;
+
+  const scene = splatMesh.getScene(node.sceneIndex);
+  if (!scene) return;
+
+  scene.position.set(9999, 9999, 9999);
+  scene.scale.set(0.0001, 0.0001, 0.0001);
+  if ('visible' in scene) scene.visible = false;
+  splatMesh.updateTransforms();
+}
+
+function hideOwnedLabels(node) {
+  spatialLabels.forEach(label => {
+    if (label.owner === node) label.element.classList.add('is-hidden');
+  });
+}
+
+function deleteSelected() {
+  if (!selected) return;
+
+  const node = selected;
+  node.deleted = true;
+  hideOwnedLabels(node);
+  hideSplatScene(node);
+  transformControls.detach();
+  threeScene.remove(node.proxy);
+  select(null);
+  buildSidebar();
+  updateBusinessModel();
+}
+
+function updateLabelVisibility() {
+  const cameraPos = camera.position;
+
+  spatialLabels.forEach(label => {
+    const element = label.element;
+    element.classList.remove('is-dimmed', 'is-hidden', 'is-compact');
+
+    if (!labelsVisible || transformControls.dragging || label.owner?.deleted) {
+      element.classList.add('is-hidden');
+      return;
+    }
+
+    const worldPos = new THREE.Vector3();
+    label.object.getWorldPosition(worldPos);
+    const distance = cameraPos.distanceTo(worldPos);
+    const isSelectedOwner = label.owner && label.owner === selected;
+    const scale = THREE.MathUtils.clamp(6 / Math.max(distance, 1), 0.62, 1);
+    element.style.setProperty('--label-scale', scale.toFixed(2));
+
+    if (label.type === 'product') {
+      if (distance > 8 && !isSelectedOwner) element.classList.add('is-hidden');
+      else if (distance > 5.2 && !isSelectedOwner) element.classList.add('is-compact');
+      else if (distance > 4.2 && !isSelectedOwner) element.classList.add('is-dimmed');
+    }
+
+    if (label.type === 'dashboard') {
+      if (distance > 11) element.classList.add('is-compact', 'is-dimmed');
+      else if (distance > 7) element.classList.add('is-dimmed');
+    }
+  });
+}
+
+function buildSidebar() {
+  const bar = document.getElementById('obj-bar');
+  const liveNodes = trackable.filter(n => !n.deleted);
+
+  if (liveNodes.length === 0) {
+    bar.innerHTML = '<div class="bar-item" style="cursor:default;color:var(--muted)">No active objects</div>';
+    return;
+  }
+
+  const rows = liveNodes.map(n => {
+    const status = n.isProduct ? classifyUnit(n) : 'Asset';
+    const badge = status === 'Quarantine'
+      ? '<span class="item-badge">LOSS</span>'
+      : status === 'Markdown'
+        ? '<span class="item-badge" style="color:var(--warn);background:rgba(242,184,75,0.12)">MARKDOWN</span>'
+        : n.isProduct
+          ? '<span class="item-badge" style="color:var(--good);background:rgba(80,216,144,0.12)">SKU</span>'
+          : '<span class="item-badge" style="color:var(--blue);background:rgba(93,168,255,0.12)">SCENE</span>';
+    const type = n.isProduct ? 'Product splat' : 'Infrastructure splat';
+    const quality = n.isProduct ? `quality loss ${n.qualityLoss}%` : 'movable scene asset';
+
+    return `
+      <div class="bar-item" id="bar-${n.sceneIndex}" data-idx="${n.sceneIndex}">
+        <div class="splat-id">#${n.sceneIndex}</div>
+        <div class="item-left">
+          <span class="item-name">${escapeHtml(n.name)}</span>
+          <span class="item-meta">${type} | ${quality}</span>
+        </div>
+        ${badge}
+      </div>`;
+  }).join('');
+
+  bar.innerHTML = `
+    <div class="splat-list-header">
+      <span>ID</span>
+      <span>Object</span>
+      <span>Status</span>
+    </div>
+    ${rows}`;
+
+  bar.querySelectorAll('.bar-item').forEach(el => {
+    el.addEventListener('click', event => {
+      event.stopPropagation();
+      const node = trackable.find(n => n.sceneIndex === Number(el.dataset.idx));
+      if (node) select(node);
+    });
+  });
+}
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+
+window.addEventListener('pointerdown', event => {
+  if (event.button !== 0) return;
+  if (event.target.closest('#sidebar') || event.target.tagName !== 'CANVAS' || transformControls.dragging) return;
+
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+
+  const hits = raycaster.intersectObjects(trackable.filter(n => !n.deleted).map(n => n.proxy));
+  if (hits.length) {
+    select(trackable.find(n => !n.deleted && n.proxy === hits[0].object) || null);
+  } else if (!transformControls.dragging) {
+    select(null);
+  }
+});
+
+window.addEventListener('contextmenu', event => {
+  if (event.target.tagName === 'CANVAS') event.preventDefault();
+}, { passive: false });
+
+window.addEventListener('keydown', event => {
+  const key = event.key.toLowerCase();
+  if (key === 't') setTransformMode('translate');
+  if (key === 'r') setTransformMode('rotate');
+
+  if (event.shiftKey && key === 'd') {
+    event.preventDefault();
+    duplicateSelected();
+  }
+
+  if (key === 'delete' || key === 'backspace') {
+    event.preventDefault();
+    deleteSelected();
+  }
+
+  const panSpeed = 0.25;
+  const offset = new THREE.Vector3();
+  if (event.key === 'ArrowUp') offset.set(0, 1, 0);
+  if (event.key === 'ArrowDown') offset.set(0, -1, 0);
+  if (event.key === 'ArrowLeft') offset.set(-1, 0, 0);
+  if (event.key === 'ArrowRight') offset.set(1, 0, 0);
+
+  if (offset.lengthSq() > 0) {
+    offset.applyQuaternion(camera.quaternion).multiplyScalar(panSpeed);
+    camera.position.add(offset);
+    controls.target.add(offset);
+  }
+});
+
+function syncTransforms() {
+  if (!dropInViewer.viewer) return;
+  const splatMesh = dropInViewer.viewer.splatMesh;
+  if (!splatMesh || !splatMesh.scenes || splatMesh.scenes.length === 0) return;
+
+  for (const node of trackable) {
+    if (node.deleted) continue;
+    if (node.sceneIndex >= splatMesh.scenes.length) continue;
+    const scene = splatMesh.getScene(node.sceneIndex);
+    if (!scene) continue;
+    scene.position.copy(node.proxy.position);
+    const finalQuaternion = new THREE.Quaternion();
+    finalQuaternion.multiplyQuaternions(node.proxy.quaternion, node.baseRotation);
+    scene.quaternion.copy(finalQuaternion);
+  }
+
+  splatMesh.updateTransforms();
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  syncTransforms();
+  updateLabelVisibility();
+  renderer.render(threeScene, camera);
+  labelRenderer.render(threeScene, camera);
+}
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  labelRenderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+(async () => {
+  buildFloatingDecisionDashboard();
+  updateBusinessModel();
+
+  document.getElementById('load-msg').textContent = 'Loading retail shelf asset...';
+  await loadSplat('Main Shelf Infrastructure', 'splats/shelf.ply', {
+    position: [0, 0.5, 0],
+    w: 4.0,
+    h: 2.5,
+    d: 1.5,
+    isProduct: false
+  });
+
+  document.getElementById('load-msg').textContent = 'Loading SKU inventory unit...';
+  await loadSplat('Personal Care SKU-A', 'splats/product.ply', {
+    position: [0, 0.42, 0],
+    rotation: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 120, 0)),
+    w: 0.5,
+    h: 0.6,
+    d: 0.5,
+    isProduct: true
+  });
+
+  await loadSplat('Personal Care SKU-A', 'splats/product.ply', {
+    position: [2, 0.42, -.5],
+    rotation: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 44, 0)),
+    w: 0.5,
+    h: 0.6,
+    d: 0.5,
+    isProduct: true
+  });
+
+  await loadSplat('Personal Care SKU-A', 'splats/product.ply', {
+    position: [-1, 0.42, -0.2],
+    w: 0.5,
+    h: 0.6,
+    d: 0.5,
+    isProduct: true
+  });
+
+  buildSidebar();
+  document.getElementById('loading').classList.add('gone');
+  animate();
+})();
+</script>
+</body>
+</html>
