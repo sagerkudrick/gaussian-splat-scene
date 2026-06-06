@@ -2,6 +2,32 @@
 
 A web-based Gaussian Splat viewer for an interactive digital twin scene with spatial data and labels.
 
+
+
+---
+
+## 🧠 Setup
+
+### Requirements
+- Python 3.13 or later installed
+
+### Run locally
+
+1. Open a terminal / Command Prompt
+2. Navigate to the project folder:
+
+```bash
+cd gaussian-splat-scene
+```
+Start a local server:
+```python -m http.server 8000```
+
+Open in your browser:
+```http://localhost:8000/index.html```
+
+
+Works on Chrome, Edge, and Firefox.
+
 ---
 
 ## 🚀 Features
