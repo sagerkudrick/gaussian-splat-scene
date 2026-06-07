@@ -131,3 +131,9 @@ Convert using:
 - Multi-scene merging
 - Occlusion-aware labeling
 - Streaming large splat datasets
+
+---
+
+## 💡Citations 
+
+Liqingyu (ayit39). 公园桌子高斯泼溅 (Park Table Gaussian Splat). SuperSplat, 2026. Available under the Creative Commons Attribution 4.0 International (CC BY 4.0) license. Retrieved from SuperSplat: https://superspl.at/scene/50a9b41e
